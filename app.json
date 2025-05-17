@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.opshadow.VTT"
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +38,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3c79a134-aea5-4e8a-a656-dc3da9d90531"
+      }
     }
   }
 }

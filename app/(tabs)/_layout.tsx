@@ -1,45 +1,38 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+// app/(tabs)/_layout.tsx
+"use client";
 
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { Stack, useNavigation } from "expo-router"; // Combined imports
+// import { Ionicons } from "@expo/vector-icons"; // Removed unused import
+import { useTheme } from "@/contexts/ThemeContext";
+import CustomHeader from "@/components/CustomHeader";
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function StackLayout() {
+  const { colors } = useTheme();
+  const navigation = useNavigation(); // useNavigation is used
 
   return (
-    <Tabs
+    <Stack
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-        tabBarBackground: TabBarBackground,
-        tabBarStyle: Platform.select({
-          ios: {
-            // Use a transparent background on iOS to show the blur effect
-            position: 'absolute',
-          },
-          default: {},
-        }),
-      }}>
-      <Tabs.Screen
+        headerStyle: {
+          backgroundColor: colors.background,
+        },
+        headerTintColor: colors.accent, 
+      }}
+    >
+      <Stack.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          header: () => <CustomHeader navigation={navigation} />,
+          headerShown: true,
         }}
       />
-      <Tabs.Screen
-        name="explore"
+      <Stack.Screen
+        name="explore" 
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Analytics",
+          headerShown: false, 
         }}
       />
-    </Tabs>
+    </Stack>
   );
 }

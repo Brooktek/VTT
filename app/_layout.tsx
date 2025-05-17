@@ -1,29 +1,24 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
+// app/_layout.tsx
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext'; // Your theme provider
+// ... other necessary imports like SplashScreen, useFonts ...
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useFonts } from 'expo-font';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    // Add your font imports here, e.g.:
+    // 'Roboto-Regular': require('../assets/fonts/Roboto-Regular.ttf'),
   });
 
-  if (!loaded) {
-    // Async font loading only occurs in development.
-    return null;
-  }
+  if (!loaded) return null; // Or your splash screen
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <CustomThemeProvider>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
+        <Stack.Screen name="+not-found" /> {/* Explicitly declare if needed, though convention usually suffices */}
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </CustomThemeProvider>
   );
 }
