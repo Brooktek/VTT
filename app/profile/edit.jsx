@@ -62,7 +62,7 @@ const EditProfileScreen = () => {
   }, []);
 
   const handleChooseAvatar = async () => {
-    // Alert.alert("Feature Coming Soon", "Avatar selection will be implemented here.");
+    Alert.alert("Feature Coming Soon", "Avatar selection will be implemented here.");
     // Uncomment and use ImagePicker when ready:
     /*
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();

@@ -15,7 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useNavigation } from 'expo-router'; // Import useNavigation
+import { useNavigation, useFocusEffect } from 'expo-router'; // Added useFocusEffect
 
 
 import Calendar from "@/components/Calendar";
@@ -24,10 +24,11 @@ import TaskModal from "@/components/timeslot/TaskModal";
 import FloatingActionButtons from "@/components/timeslot/FloatingActionButtons";
 import SidebarMenu from "@/components/SidebarMenu";
 import { generateTimeSlots } from "@/utils/timeUtil";
+import { getAllCategories, getCategoryDisplayColor } from "@/utils/categoryManager"; // Import category utilities
 
 export default function TimeSlotScreen() {
   const { colors, isDarkMode, toggleTheme } = useTheme();
-  const navigation = useNavigation(); // Get navigation object
+  const navigation = useNavigation();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [timeSlots, setTimeSlots] = useState([]);
@@ -38,12 +39,29 @@ export default function TimeSlotScreen() {
   const [selectedView, setSelectedView] = useState("calendar");
   const [sidebarVisible, setSidebarVisible] = useState(false);
 
+  const [allCategoriesForScreen, setAllCategoriesForScreen] = useState([]);
+
+  const fetchAllCatsForScreen = useCallback(async () => {
+      try {
+        const cats = await getAllCategories();
+        setAllCategoriesForScreen(cats);
+      } catch (error) {
+        console.error("Failed to fetch categories for TimeSlotScreen:", error);
+      }
+  }, []);
+
+  // Fetch categories when the screen mounts and when it gains focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchAllCatsForScreen();
+    }, [fetchAllCatsForScreen])
+  );
 
   useEffect(() => {
     navigation.setParams({
       openSidebar: () => setSidebarVisible(true),
     });
-  }, [navigation, setSidebarVisible]); 
+  }, [navigation]);
 
 
   const allPossibleTimeSlots = useMemo(() => generateTimeSlots(), []);
@@ -52,28 +70,22 @@ export default function TimeSlotScreen() {
     setTimeSlots(allPossibleTimeSlots);
   }, [allPossibleTimeSlots]);
 
-  const getCategoryColor = useCallback((category) => {
-    switch (category) {
-      case "Work": return colors.error;
-      case "Personal": return colors.success;
-      case "Meeting": return colors.info;
-      case "School": return colors.warning;
-      case "Team Time": return colors.teamTime || "#03A9F4";
-      case "Friends": return colors.friends || "#9C27B0";
-      default: return colors.accent;
-    }
-  }, [colors]);
+  // Updated getCategoryColor for TimeSlotItem
+  const getDynamicCategoryColor = useCallback((categoryName) => {
+    return getCategoryDisplayColor(categoryName, allCategoriesForScreen, colors, isDarkMode);
+  }, [allCategoriesForScreen, colors, isDarkMode]);
 
   const updateTimeSlotHighlights = useCallback((tasksForDate) => {
     const newTimeSlots = allPossibleTimeSlots.map(slot => {
         const taskOnSlot = tasksForDate.find(task => task.timeSlotIds.includes(slot.id));
         if (taskOnSlot) {
+            // taskOnSlot.category should be the category NAME
             return { ...slot, hasTask: true, category: taskOnSlot.category, taskText: taskOnSlot.task };
         }
-        return { ...slot, hasTask: false, category: undefined, taskText: undefined }; // Reset if no task
+        return { ...slot, hasTask: false, category: undefined, taskText: undefined };
     });
     setTimeSlots(newTimeSlots);
-  }, [allPossibleTimeSlots]);
+  }, [allPossibleTimeSlots /* Removed getDynamicCategoryColor from deps if not directly used here */]);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -92,7 +104,7 @@ export default function TimeSlotScreen() {
 
   useEffect(() => {
     loadTasks();
-  }, [loadTasks]);
+  }, [loadTasks]); // Re-run loadTasks if selectedDate or updateTimeSlotHighlights changes
 
   const handleDateSelect = (date) => {
     setSelectedDate(date);
@@ -116,7 +128,7 @@ export default function TimeSlotScreen() {
     if (taskToEdit) {
         setEditingTask(taskToEdit);
         const taskSlots = allPossibleTimeSlots.filter(ts => taskToEdit.timeSlotIds.includes(ts.id));
-        setSelectedTimeSlots(taskSlots.length > 0 ? taskSlots : selectedTimeSlots);
+        setSelectedTimeSlots(taskSlots.length > 0 ? taskSlots : []);
     } else {
         const selectedSlotIds = selectedTimeSlots.map(s => s.id);
         const existingTaskInSelectedSlots = tasks.find(task =>
@@ -143,6 +155,7 @@ export default function TimeSlotScreen() {
     }
     if (!taskToEdit) {
         Alert.alert("No Task Found", "Selected slots do not contain a task to edit.");
+        setSelectedTimeSlots([]);
         return;
     }
     handleAddOrEditPress(taskToEdit);
@@ -153,31 +166,42 @@ export default function TimeSlotScreen() {
       Alert.alert("No Time Selected", "Select slots with tasks to delete.");
       return;
     }
-    const slotIdsToDelete = selectedTimeSlots.map(s => s.id);
-    const tasksInSelectedSlots = tasks.filter(task =>
-        task.timeSlotIds.some(id => slotIdsToDelete.includes(id))
+    const slotsWithTasksToDelete = selectedTimeSlots.filter(slot =>
+        tasks.some(task => task.timeSlotIds.includes(slot.id))
     );
-    if (tasksInSelectedSlots.length === 0) {
-        Alert.alert("No Tasks Found", "No tasks in selected slots.");
+    if (slotsWithTasksToDelete.length === 0) {
+        Alert.alert("No Tasks Found", "Selected slots do not contain any tasks to delete.");
+        setSelectedTimeSlots([]);
         return;
     }
-    Alert.alert("Confirm Delete", "Delete task(s) in selected slots?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => performDeleteTasks(slotIdsToDelete) },
-    ]);
+    const taskIdsToDelete = new Set();
+    slotsWithTasksToDelete.forEach(slot => {
+        const task = tasks.find(t => t.timeSlotIds.includes(slot.id));
+        if (task) taskIdsToDelete.add(task.id);
+    });
+    if (taskIdsToDelete.size === 0) {
+        Alert.alert("No Tasks Found", "No tasks in selected slots.");
+        setSelectedTimeSlots([]);
+        return;
+    }
+    Alert.alert(
+      "Confirm Delete",
+      `Are you sure you want to delete ${taskIdsToDelete.size} task(s) associated with the selected slots?`,
+      [
+        { text: "Cancel", style: "cancel", onPress: () => setSelectedTimeSlots([]) },
+        { text: "Delete", style: "destructive", onPress: () => performDeleteTasksByIds(Array.from(taskIdsToDelete)) },
+      ]
+    );
   };
 
-  const performDeleteTasks = async (slotIdsToDelete) => {
+  const performDeleteTasksByIds = async (taskIdsToDelete) => {
     try {
       const storedTasksJson = await AsyncStorage.getItem("tasks");
       let allStoredTasks = storedTasksJson ? JSON.parse(storedTasksJson) : [];
-      const dateStr = selectedDate.toDateString();
-      const updatedTasks = allStoredTasks.filter(task =>
-        task.date !== dateStr || !task.timeSlotIds.some(id => slotIdsToDelete.includes(id))
-      );
+      const updatedTasks = allStoredTasks.filter(task => !taskIdsToDelete.includes(task.id));
       await AsyncStorage.setItem("tasks", JSON.stringify(updatedTasks));
       setSelectedTimeSlots([]);
-      loadTasks();
+      loadTasks(); // This reloads tasks for the current date and updates highlights
       Alert.alert("Success", "Task(s) deleted successfully!");
     } catch (error) {
       console.error("Failed to delete tasks:", error);
@@ -185,15 +209,20 @@ export default function TimeSlotScreen() {
     }
   };
 
-  const handleSaveTask = async (taskDetails) => {
+  const handleSaveTask = async (taskDetails) => { // taskDetails = { text, category (name) }
     if (!taskDetails.text.trim()) {
       Alert.alert("Task Required", "Enter task description.");
       return;
+    }
+    if (!taskDetails.category) {
+        Alert.alert("Category Required", "A category is required for the task.");
+        return;
     }
     if (selectedTimeSlots.length === 0 && !editingTask) {
         Alert.alert("No Time Slots", "Select time slots for the new task.");
         return;
     }
+
     try {
       const storedTasksJson = await AsyncStorage.getItem("tasks");
       let allStoredTasks = storedTasksJson ? JSON.parse(storedTasksJson) : [];
@@ -202,6 +231,16 @@ export default function TimeSlotScreen() {
       const dateStr = selectedDate.toDateString();
 
       if (editingTask) {
+        const otherTasksOnDate = allStoredTasks.filter(
+            task => task.date === dateStr && task.id !== editingTask.id
+        );
+        const conflictWithOtherTask = otherTasksOnDate.some(task =>
+            task.timeSlotIds.some(id => selectedSlotIds.includes(id))
+        );
+        if (conflictWithOtherTask) {
+            Alert.alert("Slot Occupied", "The new time slots for this task conflict with another existing task.");
+            return;
+        }
         allStoredTasks = allStoredTasks.map((task) =>
           task.id === editingTask.id
             ? { ...task, task: taskDetails.text, category: taskDetails.category, timeSlotIds: selectedSlotIds, timeSlots: selectedSlotTexts, totalTime: selectedTimeSlots.length * 0.5 }
@@ -212,17 +251,27 @@ export default function TimeSlotScreen() {
             task.date === dateStr && task.timeSlotIds.some(id => selectedSlotIds.includes(id))
         );
         if (existingTaskInSlot) {
-            Alert.alert("Slot Occupied", "Selected slots are part of another task for this date.");
+            Alert.alert("Slot Occupied", "One or more selected slots are already part of another task for this date.");
             return;
         }
-        const newTask = { id: Date.now().toString(), task: taskDetails.text, category: taskDetails.category, date: dateStr, timeSlotIds: selectedSlotIds, timeSlots: selectedSlotTexts, timestamp: new Date().toISOString(), totalTime: selectedTimeSlots.length * 0.5 };
+        const newTask = {
+            id: Date.now().toString(),
+            task: taskDetails.text,
+            category: taskDetails.category, // Save category NAME
+            date: dateStr,
+            timeSlotIds: selectedSlotIds,
+            timeSlots: selectedSlotTexts,
+            timestamp: new Date().toISOString(),
+            totalTime: selectedTimeSlots.length * 0.5
+        };
         allStoredTasks.push(newTask);
       }
       await AsyncStorage.setItem("tasks", JSON.stringify(allStoredTasks));
       setModalVisible(false);
       setEditingTask(null);
       setSelectedTimeSlots([]);
-      loadTasks();
+      await loadTasks(); // Ensure tasks are reloaded before categories (if category change affects this screen directly)
+      await fetchAllCatsForScreen(); // Refresh categories, in case a new one was added via TaskModal
       Alert.alert("Success", `Task ${editingTask ? "updated" : "added"}!`);
     } catch (error) {
       console.error("Failed to save task:", error);
@@ -230,13 +279,11 @@ export default function TimeSlotScreen() {
     }
   };
 
-  const styles = getStyles(colors); // Make sure getStyles is defined below
+  const styles = getStyles(colors);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={colors.background} />
-
-
 
       <SidebarMenu
         visible={sidebarVisible}
@@ -244,6 +291,7 @@ export default function TimeSlotScreen() {
         colors={colors}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
+        // Consider passing allCategoriesForScreen to SidebarMenu if it lists categories
       />
 
       <View style={styles.content}>
@@ -255,20 +303,23 @@ export default function TimeSlotScreen() {
               <Text style={styles.timeSlotsTitle}>Select Time Slots:</Text>
               <TouchableOpacity
                 style={[styles.calendarNavButton, { backgroundColor: colors.surfaceVariant }]}
-                onPress={() => setSelectedView("calendar")}
+                onPress={() => {
+                    setSelectedView("calendar");
+                    setSelectedTimeSlots([]);
+                }}
               >
                 <Ionicons name="calendar-outline" size={22} color={colors.accent} />
               </TouchableOpacity>
             </View>
             <FlatList
-              data={timeSlots}
+              data={timeSlots} // timeSlots items should have { ..., category: "CategoryName", ... }
               renderItem={({item}) => (
                 <TimeSlotItem
                     item={item}
                     isSelected={selectedTimeSlots.some(s => s.id === item.id)}
                     onPress={() => toggleTimeSlotSelection(item)}
                     colors={colors}
-                    getCategoryColor={getCategoryColor}
+                    getCategoryColor={getDynamicCategoryColor} // Use the dynamic one
                 />
               )}
               keyExtractor={(item) => item.id}
@@ -282,12 +333,17 @@ export default function TimeSlotScreen() {
 
       <TaskModal
         visible={modalVisible}
-        onClose={() => { setModalVisible(false); setEditingTask(null); }}
+        onClose={() => {
+            setModalVisible(false);
+            setEditingTask(null);
+            setSelectedTimeSlots([]);
+            fetchAllCatsForScreen(); // Refresh categories when modal closes, in case one was added
+         }}
         onSubmit={handleSaveTask}
         editingTask={editingTask}
         selectedTimeSlots={selectedTimeSlots}
-        colors={colors}
-        getCategoryColor={getCategoryColor}
+        colors={colors} // Pass theme colors (TaskModal uses useTheme for isDarkMode)
+        // getCategoryColor is removed as TaskModal handles its own category color logic now
         toggleTimeSlotSelection={toggleTimeSlotSelection}
       />
 

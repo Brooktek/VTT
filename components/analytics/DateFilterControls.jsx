@@ -170,7 +170,9 @@ const getDateFilterStyles = (colors) => StyleSheet.create({
   },
   pickerContainer: {
     flex: 1, // Allow containers to share space
-    marginHorizontal: 4, // Add small horizontal margin between pickers
+
+    marginHorizontal: 4,
+    padding: 3, // Add small horizontal margin between pickers
   },
   pickerLabel: {
     color: colors.textSecondary,
@@ -180,8 +182,8 @@ const getDateFilterStyles = (colors) => StyleSheet.create({
     paddingLeft: 4,
   },
   pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
+  backgroundColor: '#e0e0e0', 
+   borderRadius: 10,
     height: 45, // Slightly taller
     justifyContent: 'center',
     borderWidth: 1,
