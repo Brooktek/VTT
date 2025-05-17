@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "VTT",
+    "name": "VT",
     "slug": "VTT",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon/VT.png",
     "scheme": "vtt",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/VT.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
