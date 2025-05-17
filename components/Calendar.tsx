@@ -14,46 +14,35 @@ interface CalendarProps {
   onDateSelect: (date: Date) => void
 }
 
-// --- MUI IMPORT START ---
-// interface DateObject { // Original position - moving to top with other interfaces
-//   day: number
-//   currentMonth: boolean
-//   month: number
-//   year: number
-// }
-// --- MUI IMPORT END ---
-// --- RE-ADD THE MISSING DateObject INTERFACE HERE ---
 interface DateObject {
   day: number;
   currentMonth: boolean;
   month: number; // 0-11 for month index
   year: number;
 }
-// --- END RE-ADD ---
 
-
-interface Task { // This interface was correctly present
+interface Task {
   id: string
   task: string
   category: string
   date: string // Should be a string representation of a date, e.g., from Date.toDateString()
   timeSlotIds: string[]
-  timeSlots: string[] // Array of display strings for time slots
-  timestamp: string // Or Date object for creation/update time
-  totalTime: number // In hours or some consistent unit
+  timeSlots: string[]
+  timestamp: string
+  totalTime: number
 }
 
 
 const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
   const { colors } = useTheme()
-  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth()) // 0-11
+  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth())
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear())
-  const [selectedDateVisual, setSelectedDateVisual] = useState<number>(new Date().getDate()) // For visual selection within the calendar
+  const [selectedDateVisual, setSelectedDateVisual] = useState<number>(new Date().getDate())
   const [tasksForMonth, setTasksForMonth] = useState<Task[]>([])
   const [monthAnimation] = useState(new Animated.Value(0))
 
   const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-  const dayNames = ["M", "T", "W", "T", "F", "S", "S"] // Assuming Monday is the start of the week
+  const dayNames = ["M", "T", "W", "T", "F", "S", "S"]
 
   const loadTasksForMonth = useCallback(async () => {
     try {
@@ -61,7 +50,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
       if (storedTasksJson) {
         const allTasks = JSON.parse(storedTasksJson) as Task[];
         const filteredTasks = allTasks.filter((task: Task) => {
-          const taskDate = new Date(task.date) // Assuming task.date is a string that can be parsed into a Date
+          const taskDate = new Date(task.date)
           return taskDate.getFullYear() === currentYear && taskDate.getMonth() === currentMonth
         })
         setTasksForMonth(filteredTasks)
@@ -76,7 +65,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
 
   useEffect(() => {
     loadTasksForMonth();
-  }, [loadTasksForMonth]);
+  }, [loadTasksForMonth]); // Re-run when currentYear or currentMonth changes
 
   const isLeapYear = useCallback((year: number): boolean => {
     return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
@@ -88,65 +77,82 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
   }, [isLeapYear]);
 
   const getFirstDayOfMonth = useCallback((year: number, month: number): number => {
-    const dayOfWeek = new Date(year, month, 1).getDay() // 0 (Sun) - 6 (Sat)
-    return dayOfWeek === 0 ? 6 : dayOfWeek - 1 // Adjust to 0 (Mon) - 6 (Sun)
+    const dayOfWeek = new Date(year, month, 1).getDay()
+    return dayOfWeek === 0 ? 6 : dayOfWeek - 1
   }, []);
 
   const handleDateSelection = (day: number, month = currentMonth, year = currentYear) => {
-    setSelectedDateVisual(day); // Update internal visual selection state
+    // Ensure the selection is for the current displayed month if month/year aren't from prev/next month days
+    if (month === currentMonth && year === currentYear) {
+        setSelectedDateVisual(day);
+    } else {
+        // If a date from a prev/next month preview is clicked, switch to that month
+        setCurrentMonth(month);
+        setCurrentYear(year);
+        setSelectedDateVisual(day); // And select the day
+    }
     if (onDateSelect) {
-      onDateSelect(new Date(year, month, day)); // Notify parent component
+      onDateSelect(new Date(year, month, day));
     }
   };
 
-  const navigateToPreviousMonth = () => {
+  const animateMonthChange = (direction: 'next' | 'prev', callback: () => void) => {
+    const slideToValue = direction === 'next' ? -width : width;
     Animated.timing(monthAnimation, {
-      toValue: width, // Slide from left (positive width)
-      duration: 300,
+      toValue: slideToValue,
+      duration: 250, // Faster animation
       useNativeDriver: true,
     }).start(() => {
-      setCurrentMonth((prevMonth) => {
-        if (prevMonth === 0) {
-          setCurrentYear(cy => cy - 1);
-          return 11;
-        }
-        return prevMonth - 1;
-      });
-      monthAnimation.setValue(-width); // Prepare for next slide-in from right
+      callback(); // Update month/year state
+      monthAnimation.setValue(-slideToValue); // Prepare for slide-in from opposite direction
       Animated.timing(monthAnimation, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
       }).start();
-    })
+    });
+  };
+
+  const navigateToPreviousMonth = () => {
+    animateMonthChange('prev', () => {
+        setCurrentMonth((prevMonth) => {
+            if (prevMonth === 0) {
+                setCurrentYear(cy => cy - 1);
+                return 11;
+            }
+            return prevMonth - 1;
+        });
+    });
   };
 
   const navigateToNextMonth = () => {
-    Animated.timing(monthAnimation, {
-      toValue: -width, // Slide from right (negative width)
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setCurrentMonth((prevMonth) => {
-        if (prevMonth === 11) {
-          setCurrentYear(cy => cy + 1);
-          return 0;
-        }
-        return prevMonth + 1;
-      });
-      monthAnimation.setValue(width); // Prepare for next slide-in from left
-       Animated.timing(monthAnimation, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-      }).start();
-    })
+     animateMonthChange('next', () => {
+        setCurrentMonth((prevMonth) => {
+            if (prevMonth === 11) {
+                setCurrentYear(cy => cy + 1);
+                return 0;
+            }
+            return prevMonth + 1;
+        });
+    });
   };
+
+  const incrementYear = () => {
+    // Optional: Add animation if desired, or just update state
+    setCurrentYear(y => y + 1);
+    // setSelectedDateVisual(1); // Optionally reset day or keep current if valid
+  };
+
+  const decrementYear = () => {
+    setCurrentYear(y => y - 1);
+    // setSelectedDateVisual(1);
+  };
+
 
   const hasTasksOnDate = useCallback((day: number): boolean => {
     return tasksForMonth.some((task) => {
       const taskDate = new Date(task.date)
-      return taskDate.getDate() === day // Ensure comparing day of the month
+      return taskDate.getDate() === day
     })
   }, [tasksForMonth]);
 
@@ -184,7 +190,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
     const prevMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
     const daysInPrevMonthVal = getDaysInMonth(prevMonthYear, prevMonth);
 
-    const prevMonthDays: DateObject[] = []; // Correctly typed with DateObject
+    const prevMonthDays: DateObject[] = [];
     for (let i = 0; i < firstDayOfCurrentMonthVal; i++) {
       prevMonthDays.unshift({
         day: daysInPrevMonthVal - i,
@@ -194,7 +200,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
       })
     }
 
-    const currentMonthDaysArr: DateObject[] = Array.from({ length: daysInCurrentMonthVal }, (_, i) => ({ // Correctly typed
+    const currentMonthDaysArr: DateObject[] = Array.from({ length: daysInCurrentMonthVal }, (_, i) => ({
       day: i + 1,
       currentMonth: true,
       month: currentMonth,
@@ -202,22 +208,22 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
     }))
 
     const totalDaysDisplayed = prevMonthDays.length + currentMonthDaysArr.length
-    const nextMonthDaysArr: DateObject[] = []; // Correctly typed
+    const nextMonthDaysArr: DateObject[] = [];
     const remainingCells = (Math.ceil(totalDaysDisplayed / 7) * 7) - totalDaysDisplayed;
 
-    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
-    const nextMonthYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+    const nextMonthVal = currentMonth === 11 ? 0 : currentMonth + 1;
+    const nextMonthYearVal = currentMonth === 11 ? currentYear + 1 : currentYear;
 
     for (let i = 1; i <= remainingCells; i++) {
       nextMonthDaysArr.push({
         day: i,
         currentMonth: false,
-        month: nextMonth,
-        year: nextMonthYear,
+        month: nextMonthVal,
+        year: nextMonthYearVal,
       })
     }
 
-    const allDays: DateObject[] = [...prevMonthDays, ...currentMonthDaysArr, ...nextMonthDaysArr]; // Correctly typed
+    const allDays: DateObject[] = [...prevMonthDays, ...currentMonthDaysArr, ...nextMonthDaysArr];
     const weeks: DateObject[][] = []
     for (let i = 0; i < allDays.length; i += 7) {
       weeks.push(allDays.slice(i, i + 7))
@@ -236,7 +242,7 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
           {weeks.map((week, weekIndex) => (
             <View key={`week-${weekIndex}`} style={[styles.weekRow, { borderBottomColor: colors.divider || colors.border }]}>
               {week.map((dateObj, dayIndex) => {
-                const isToday = isCurrentMonthAndYear && dateObj.day === today.getDate() && dateObj.currentMonth;
+                const isToday = dateObj.year === today.getFullYear() && dateObj.month === today.getMonth() && dateObj.day === today.getDate() && dateObj.currentMonth;
                 const isSelectedDay = dateObj.day === selectedDateVisual && dateObj.month === currentMonth && dateObj.year === currentYear && dateObj.currentMonth;
                 const isWeekend = dayIndex >= 5;
                 const hasTask = dateObj.currentMonth && hasTasksOnDate(dateObj.day);
@@ -244,13 +250,13 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
 
                 return (
                   <TouchableOpacity
-                    key={`${dateObj.year}-${dateObj.month}-${dateObj.day}-${dayIndex}`} // More unique key
+                    key={`${dateObj.year}-${dateObj.month}-${dateObj.day}-${dayIndex}`}
                     style={[
                       styles.dateCell,
                       isSelectedDay && [styles.selectedDate, { borderColor: colors.primary || colors.selected }],
                     ]}
                     onPress={() => handleDateSelection(dateObj.day, dateObj.month, dateObj.year)}
-                    // disabled={!dateObj.currentMonth} // Keep this if you want to disable interaction with non-current month days
+                    disabled={!dateObj.currentMonth && false} // Allow clicking prev/next month days to navigate
                   >
                     <Text
                       style={[
@@ -262,10 +268,10 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
                     >
                       {dateObj.day}
                     </Text>
-                    {hasTask && (
+                    {hasTask && dateObj.currentMonth && (
                       <View style={[styles.taskIndicator, { backgroundColor: getCategoryThemeColor(taskCategory) }]} />
                     )}
-                    {isToday && ( // Simple dot for today if not selected
+                    {isToday && (
                        <View style={[styles.todayIndicatorDot, {backgroundColor: colors.accent }]}/>
                     )}
                   </TouchableOpacity>
@@ -286,7 +292,16 @@ const Calendar: React.FC<CalendarProps> = ({ onDateSelect }) => {
         </TouchableOpacity>
         <View style={styles.monthYearContainer}>
           <Text style={[styles.monthText, { color: colors.text }]}>{monthNames[currentMonth]}</Text>
-          <Text style={[styles.yearText, {color: colors.textSecondary}]}>{currentYear}</Text>
+          {/* Year Selector */}
+          <View style={styles.yearSelector}>
+            <TouchableOpacity onPress={decrementYear} style={styles.yearNavButton}>
+              <Ionicons name="chevron-back-outline" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+            <Text style={[styles.yearText, { color: colors.textSecondary }]}>{currentYear}</Text>
+            <TouchableOpacity onPress={incrementYear} style={styles.yearNavButton}>
+              <Ionicons name="chevron-forward-outline" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
         <TouchableOpacity onPress={navigateToNextMonth} style={styles.navButton}>
           <Ionicons name="chevron-forward" size={28} color={colors.text} />
@@ -321,13 +336,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textTransform: 'uppercase',
   },
+  yearSelector: { // Styles for the new year selector
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
   yearText: {
     fontSize: 14,
     fontWeight: '500',
+    marginHorizontal: 10, // Space around the year text
+  },
+  yearNavButton: { // Style for the year +/- buttons
+    padding: 4,
   },
   animatedCalendar: {
     flex: 1,
-    width: '100%', // Ensure it takes full width for animation
+    width: '100%',
   },
   calendarContainer: {
     flex: 1,
@@ -335,13 +359,12 @@ const styles = StyleSheet.create({
   },
   weekdaysRow: {
     flexDirection: "row",
-    // justifyContent: "space-around", // Not needed if children flex
     marginBottom: 8,
     paddingBottom: 8,
     borderBottomWidth: 1,
   },
   weekdayName: {
-    flex: 1, // Make each weekday name container take equal width
+    flex: 1,
     textAlign: "center",
     fontSize: 13,
     fontWeight: "500",
@@ -353,36 +376,35 @@ const styles = StyleSheet.create({
   weekRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    flex: 1, // Allow week rows to expand
+    flex: 1,
   },
   dateCell: {
-    flex: 1, // Each cell takes equal width in a row
-    aspectRatio: 1, // Make cells square-ish
+    flex: 1,
+    aspectRatio: 1,
     justifyContent: "center",
     alignItems: "center",
-    position: "relative", // For absolute positioned indicators
-    padding: 1, // Minimal padding, adjust as needed
+    position: "relative",
+    padding: 1,
   },
   dateText: {
-    fontSize: 15, // Adjust for visibility
+    fontSize: 15,
     fontWeight: "400",
   },
-  selectedDate: { // Style for the selected day's TouchableOpacity
+  selectedDate: {
     borderWidth: 1.5,
-    borderRadius: 8, // Or make it circular: borderRadius: (width / 7 * 0.9) / 2 for example
-    // backgroundColor: colors.primary + '20', // Optional: slight background tint for selection
+    borderRadius: 8,
   },
-  taskIndicator: { // Small dot under the date number
+  taskIndicator: {
     position: "absolute",
-    bottom: 5, // Adjust to not overlap too much with date number
-    alignSelf: 'center', // Center it horizontally
+    bottom: 5,
+    alignSelf: 'center',
     width: 6,
     height: 6,
     borderRadius: 3,
   },
-  todayIndicatorDot: { // Distinct indicator for 'today'
+  todayIndicatorDot: {
     position: 'absolute',
-    top: 3, // Position it subtly
+    top: 3,
     right: 3,
     width: 7,
     height: 7,

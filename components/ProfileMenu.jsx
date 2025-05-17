@@ -9,11 +9,11 @@ import {
   Dimensions,
   ScrollView,
   Platform,
-  StatusBar, // <-- IMPORTED StatusBar
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/contexts/ThemeContext";
-// import { router } from "expo-router"; // Removed as it's unused based on the error
+import { router } from "expo-router"; // Import router for navigation
 import DarkModeToggle from "./ui/DarkModeToggle.jsx";
 
 const { width, height } = Dimensions.get("window");
@@ -22,11 +22,11 @@ const MENU_WIDTH = Math.min(width * 0.8, 320);
 const defaultUserData = {
   name: "Guest User",
   email: "guest@example.com",
-  avatarUri: "",
+  avatarUri: "", // Ensure this can be an empty string for placeholder
 };
 
 export default function ProfileMenu({ onClose, userData = defaultUserData }) {
-  const { colors, isDarkMode, toggleTheme } = useTheme(); // Removed unused `setTheme`
+  const { colors, isDarkMode, toggleTheme } = useTheme();
 
   const handleDarkModeToggle = () => {
     toggleTheme();
@@ -34,22 +34,29 @@ export default function ProfileMenu({ onClose, userData = defaultUserData }) {
 
   const handleNavigate = (path) => {
     console.log(`Navigating to ${path}`);
-    // router.push(path); // This was commented out, keeping it so for now
-    onClose();
+    if (path) { // Ensure path is provided
+        router.push(path);
+    }
+    onClose(); // Close menu after navigation attempt
   };
 
   const handleLogout = () => {
     console.log("Logging out...");
+    // Add actual logout logic here (e.g., clear tokens, navigate to login)
     onClose();
   };
 
   const menuItems = [
+    // Ensure the path '/profile/edit' matches your file system routing for Expo Router
     { id: 'editProfile', label: "Edit Profile", icon: "person-circle-outline", action: () => handleNavigate("/profile/edit") },
-    { id: 'settings', label: "Settings & Privacy", icon: "settings-outline", action: () => handleNavigate("/settings") },
-    { id: 'help', label: "Help & Support", icon: "help-circle-outline", action: () => handleNavigate("/help") },
+    { id: 'settings', label: "Settings & Privacy", icon: "settings-outline", action: () => handleNavigate("/settings") }, // Placeholder
+    { id: 'help', label: "Help & Support", icon: "help-circle-outline", action: () => handleNavigate("/help") }, // Placeholder
   ];
 
   const styles = getProfileMenuStyles(colors, MENU_WIDTH);
+
+  // Use a default or placeholder avatar if userData.avatarUri is empty
+  const avatarSource = userData.avatarUri ? { uri: userData.avatarUri } : null; // Or require a local placeholder image
 
   return (
     <TouchableOpacity
@@ -57,12 +64,12 @@ export default function ProfileMenu({ onClose, userData = defaultUserData }) {
       activeOpacity={1}
       onPress={onClose}
     >
-      <TouchableOpacity activeOpacity={1} style={styles.menuContainerTouchable}>
+      <TouchableOpacity activeOpacity={1} style={styles.menuContainerTouchable} onPress={() => { /* Prevent closing by tapping menu */ }}>
         <View style={styles.menuContent}>
           <View style={styles.profileInfoSection}>
             <View style={styles.avatarContainer}>
-              {userData.avatarUri ? (
-                <Image source={{ uri: userData.avatarUri }} style={styles.profileAvatarImage} />
+              {avatarSource ? (
+                <Image source={avatarSource} style={styles.profileAvatarImage} />
               ) : (
                 <View style={styles.profileAvatarPlaceholder}>
                   <Ionicons name="person" size={30} color={colors.onPrimary || colors.background} />
@@ -70,8 +77,8 @@ export default function ProfileMenu({ onClose, userData = defaultUserData }) {
               )}
             </View>
             <View style={styles.textInfo}>
-              <Text style={styles.profileName} numberOfLines={1}>{userData.name}</Text>
-              <Text style={styles.profileEmail} numberOfLines={1}>{userData.email}</Text>
+              <Text style={styles.profileName} numberOfLines={1}>{userData.name || "User Name"}</Text>
+              <Text style={styles.profileEmail} numberOfLines={1}>{userData.email || "user@example.com"}</Text>
             </View>
           </View>
 
@@ -108,16 +115,17 @@ const getProfileMenuStyles = (colors, menuWidth) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.55)",
-    justifyContent: "flex-start",
-    alignItems: "flex-end",
+    justifyContent: "flex-start", // Align menu to top
+    alignItems: "flex-end", // Align menu to right
   },
   menuContainerTouchable: {
-    marginTop: Platform.OS === 'android' ? StatusBar.currentHeight + 50 : 70, // Adjusted iOS marginTop
+    // Adjust marginTop to account for status bar and potential header
+    marginTop: (Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0) + 50, // Add some space from top
     marginRight: 10,
     width: menuWidth,
-    maxHeight: height * 0.7,
+    maxHeight: height * 0.75, // Increased max height
     borderRadius: 12,
-    backgroundColor: colors.card,
+    backgroundColor: colors.card, // Use card color from theme
     shadowColor: "#000",
     shadowOffset: { width: -3, height: 3 },
     shadowOpacity: 0.2,
@@ -148,12 +156,12 @@ const getProfileMenuStyles = (colors, menuWidth) => StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary, // Use primary color for placeholder background
     justifyContent: "center",
     alignItems: "center",
   },
   textInfo: {
-    flex: 1,
+    flex: 1, // Allow text to take available space and wrap if needed
   },
   profileName: {
     fontSize: 17,
@@ -165,33 +173,39 @@ const getProfileMenuStyles = (colors, menuWidth) => StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
   },
-  menuItemsScroll: {},
+  menuItemsScroll: {
+    // Can set a max height here if content overflows maxHeight of menuContainerTouchable
+  },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 14, // Consistent padding
     paddingHorizontal: 16,
   },
   menuItemIcon: {
     marginRight: 18,
-    width: 24,
+    width: 24, // Ensure icon has a fixed width for alignment
     textAlign: 'center',
   },
   menuItemText: {
     fontSize: 16,
     color: colors.text,
-    flex: 1,
+    flex: 1, // Allow text to take remaining space
   },
-  darkModeItem: {},
-  darkModeToggleContainer: {},
+  darkModeItem: {
+    // Specific styles for dark mode row if needed
+  },
+  darkModeToggleContainer: {
+    // Container for the switch to align it if necessary
+  },
   logoutItem: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    marginTop: 10,
-    paddingTop: 10,
+    marginTop: 10, // Space above logout
+    paddingTop: 10, // Padding within the logout item above the border
   },
   logoutItemText: {
-    color: colors.error,
+    color: colors.error, // Use error color from theme for logout text
     fontWeight: "500",
   },
 });
